@@ -202,7 +202,10 @@ function renderTable() {
   }
   const sorted = [...lastResults].sort((a, b) => {
     const av = a[sortKey], bv = b[sortKey];
-    if (typeof av === "string") return av.localeCompare(bv) * sortDir;
+    if (typeof av === "string") {
+      // 用字元碼比較而非 localeCompare，避免瀏覽器地區排序規則造成非預期順序
+      return (av < bv ? -1 : av > bv ? 1 : 0) * sortDir;
+    }
     return (av - bv) * sortDir;
   });
   const rows = sorted.map((r, i) => `
