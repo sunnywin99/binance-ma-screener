@@ -84,6 +84,13 @@
     background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
   }
   .error { color: var(--danger); }
+  .section { margin-bottom: 28px; }
+  .section-title {
+    font-size: 1rem; font-weight: 700; margin: 0 0 4px;
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .section-count { font-weight: 500; color: var(--muted); font-size: 0.85rem; }
+  .section-desc { color: var(--muted); font-size: 0.82rem; margin: 0 0 10px; }
   footer { margin-top: 20px; color: var(--muted); font-size: 0.78rem; text-align: center; }
   a { color: var(--accent); }
 </style>
@@ -92,7 +99,8 @@
 <div class="wrap">
   <h1>USDT 幣種 MA 多頭排列篩選器</h1>
   <div class="sub">
-    掃描幣安（Binance）現貨所有 USDT 交易對的日K線，篩選出均線多頭排列（MA50 &gt; MA150 &gt; MA200）的幣種。
+    掃描幣安（Binance）現貨所有 USDT 交易對的日K線，篩選出均線多頭排列（MA50 &gt; MA150 &gt; MA200）的幣種，
+    並依現價與 MA50 / MA150 的相對位置再分成三類。
     資料在你按下「開始掃描」時，即時從幣安公開 API 抓取，不會儲存在任何伺服器上。
   </div>
   <div class="controls">
@@ -115,8 +123,32 @@ const progressFill = document.getElementById("progressFill");
 const resultArea = document.getElementById("resultArea");
 
 let lastResults = [];
-let sortKey = "symbol";
-let sortDir = 1;
+
+const SECTIONS = [
+  {
+    id: "above50",
+    title: "現價 > MA50",
+    desc: "現價已站上 MA50，趨勢最強勢的一組。",
+    match: r => r.price > r.ma50,
+  },
+  {
+    id: "between",
+    title: "現價介於 MA150 與 MA50 之間",
+    desc: "現價回落到 MA50 之下、但仍在 MA150 之上，尚未跌破多頭排列的中段支撐。",
+    match: r => r.price <= r.ma50 && r.price > r.ma150,
+  },
+  {
+    id: "other",
+    title: "其他",
+    desc: "現價已跌破 MA150（仍符合 MA50 &gt; MA150 &gt; MA200 排列，但價格轉弱）。",
+    match: r => r.price <= r.ma150,
+  },
+];
+
+// 每個分類各自獨立的排序狀態
+const sectionState = Object.fromEntries(
+  SECTIONS.map(s => [s.id, { sortKey: "symbol", sortDir: 1 }])
+);
 
 async function fetchJson(url) {
   const res = await fetch(url);
@@ -195,20 +227,21 @@ function formatPrice(v) {
   return v.toPrecision(4);
 }
 
-function renderTable() {
-  if (lastResults.length === 0) {
-    resultArea.innerHTML = `<div class="empty">目前沒有符合 MA50 &gt; MA150 &gt; MA200 多頭排列的 USDT 幣種。</div>`;
-    return;
-  }
-  const sorted = [...lastResults].sort((a, b) => {
-    const av = a[sortKey], bv = b[sortKey];
+function sortRows(rows, state) {
+  return [...rows].sort((a, b) => {
+    const av = a[state.sortKey], bv = b[state.sortKey];
     if (typeof av === "string") {
       // 用字元碼比較而非 localeCompare，避免瀏覽器地區排序規則造成非預期順序
-      return (av < bv ? -1 : av > bv ? 1 : 0) * sortDir;
+      return (av < bv ? -1 : av > bv ? 1 : 0) * state.sortDir;
     }
-    return (av - bv) * sortDir;
+    return (av - bv) * state.sortDir;
   });
-  const rows = sorted.map((r, i) => `
+}
+
+function renderSectionTable(section, rows) {
+  const state = sectionState[section.id];
+  const sorted = sortRows(rows, state);
+  const bodyRows = sorted.map((r, i) => `
     <tr>
       <td class="rank">${i + 1}</td>
       <td class="symbol">${r.symbol}</td>
@@ -220,29 +253,51 @@ function renderTable() {
     </tr>
   `).join("");
 
-  resultArea.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th class="rank">#</th>
-          <th data-key="symbol">幣種</th>
-          <th data-key="price">現價</th>
-          <th data-key="ma50">MA50</th>
-          <th data-key="ma150">MA150</th>
-          <th data-key="ma200">MA200</th>
-          <th data-key="strength">MA50 領先 MA200</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
+  return `
+    <div class="section" data-section="${section.id}">
+      <div class="section-title">${section.title} <span class="section-count">(${rows.length} 檔)</span></div>
+      <div class="section-desc">${section.desc}</div>
+      ${rows.length === 0
+        ? `<div class="empty">這一類目前沒有符合的幣種。</div>`
+        : `<table>
+            <thead>
+              <tr>
+                <th class="rank">#</th>
+                <th data-key="symbol">幣種</th>
+                <th data-key="price">現價</th>
+                <th data-key="ma50">MA50</th>
+                <th data-key="ma150">MA150</th>
+                <th data-key="ma200">MA200</th>
+                <th data-key="strength">MA50 領先 MA200</th>
+              </tr>
+            </thead>
+            <tbody>${bodyRows}</tbody>
+          </table>`
+      }
+    </div>
   `;
+}
 
-  resultArea.querySelectorAll("th[data-key]").forEach(th => {
-    th.addEventListener("click", () => {
-      const key = th.dataset.key;
-      if (sortKey === key) sortDir *= -1;
-      else { sortKey = key; sortDir = -1; }
-      renderTable();
+function renderTable() {
+  if (lastResults.length === 0) {
+    resultArea.innerHTML = `<div class="empty">目前沒有符合 MA50 &gt; MA150 &gt; MA200 多頭排列的 USDT 幣種。</div>`;
+    return;
+  }
+
+  resultArea.innerHTML = SECTIONS
+    .map(section => renderSectionTable(section, lastResults.filter(section.match)))
+    .join("");
+
+  resultArea.querySelectorAll(".section").forEach(sectionEl => {
+    const sectionId = sectionEl.dataset.section;
+    const state = sectionState[sectionId];
+    sectionEl.querySelectorAll("th[data-key]").forEach(th => {
+      th.addEventListener("click", () => {
+        const key = th.dataset.key;
+        if (state.sortKey === key) state.sortDir *= -1;
+        else { state.sortKey = key; state.sortDir = -1; }
+        renderTable();
+      });
     });
   });
 }
