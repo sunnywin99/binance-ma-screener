@@ -115,8 +115,8 @@ const progressFill = document.getElementById("progressFill");
 const resultArea = document.getElementById("resultArea");
 
 let lastResults = [];
-let sortKey = "strength";
-let sortDir = -1;
+let sortKey = "symbol";
+let sortDir = 1;
 
 async function fetchJson(url) {
   const res = await fetch(url);
@@ -200,7 +200,11 @@ function renderTable() {
     resultArea.innerHTML = `<div class="empty">目前沒有符合 MA50 &gt; MA150 &gt; MA200 多頭排列的 USDT 幣種。</div>`;
     return;
   }
-  const sorted = [...lastResults].sort((a, b) => (a[sortKey] - b[sortKey]) * sortDir);
+  const sorted = [...lastResults].sort((a, b) => {
+    const av = a[sortKey], bv = b[sortKey];
+    if (typeof av === "string") return av.localeCompare(bv) * sortDir;
+    return (av - bv) * sortDir;
+  });
   const rows = sorted.map((r, i) => `
     <tr>
       <td class="rank">${i + 1}</td>
