@@ -175,9 +175,9 @@ async function analyzeSymbol(symbol) {
   const klines = await fetchJson(
     `${BASE}/api/v3/klines?symbol=${symbol}&interval=1d&limit=201`
   );
-  const now = Date.now();
-  // 只取已收盤的K棒，排除當日尚未走完的那一根
-  const closed = klines.filter(k => k[6] < now);
+  // limit=201 時最後一根必定是幣安當下這一天、尚未收盤的K棒，直接捨棄。
+  // 不用本機時間去判斷是否收盤，避免受本機系統時間誤差影響。
+  const closed = klines.slice(0, -1);
   if (closed.length < 200) return null;
 
   const closes = closed.map(k => parseFloat(k[4]));
