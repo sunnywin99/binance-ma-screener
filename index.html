@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>USDT 幣種 MA 多頭排列篩選器</title>
+<title>USDT 永續合約 MA 多頭排列篩選器</title>
 <style>
   :root {
     --bg: #0b0e14;
@@ -97,9 +97,9 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>USDT 幣種 MA 多頭排列篩選器</h1>
+  <h1>USDT 永續合約 MA 多頭排列篩選器</h1>
   <div class="sub">
-    掃描幣安（Binance）現貨所有 USDT 交易對的日K線，篩選出均線多頭排列（MA50 &gt; MA150 &gt; MA200）的幣種，
+    掃描幣安（Binance）USDⓈ-M 所有 USDT 本位永續合約的日K線，篩選出均線多頭排列（MA50 &gt; MA150 &gt; MA200）的合約，
     並依現價與 MA50 / MA150 的相對位置再分成三類。
     資料在你按下「開始掃描」時，即時從幣安公開 API 抓取，不會儲存在任何伺服器上。
   </div>
@@ -110,12 +110,12 @@
   <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
   <div id="resultArea"></div>
   <footer>
-    資料來源：Binance 公開 API（api.binance.com）。僅供研究參考，非投資建議。
+    資料來源：Binance USDⓈ-M 永續合約公開 API（fapi.binance.com）。僅供研究參考，非投資建議。
   </footer>
 </div>
 
 <script>
-const BASE = "https://api.binance.com";
+const BASE = "https://fapi.binance.com";
 const scanBtn = document.getElementById("scanBtn");
 const statusEl = document.getElementById("status");
 const progressBar = document.getElementById("progressBar");
@@ -157,12 +157,12 @@ async function fetchJson(url) {
 }
 
 async function getUsdtSymbols() {
-  const info = await fetchJson(BASE + "/api/v3/exchangeInfo");
+  const info = await fetchJson(BASE + "/fapi/v1/exchangeInfo");
   return info.symbols
     .filter(s =>
       s.quoteAsset === "USDT" &&
       s.status === "TRADING" &&
-      s.isSpotTradingAllowed
+      s.contractType === "PERPETUAL"
     )
     .map(s => s.symbol);
 }
@@ -173,7 +173,7 @@ function average(arr) {
 
 async function analyzeSymbol(symbol) {
   const klines = await fetchJson(
-    `${BASE}/api/v3/klines?symbol=${symbol}&interval=1d&limit=201`
+    `${BASE}/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=201`
   );
   // limit=201 時最後一根必定是幣安當下這一天、尚未收盤的K棒，直接捨棄。
   // 不用本機時間去判斷是否收盤，避免受本機系統時間誤差影響。
@@ -244,7 +244,7 @@ function renderSectionTable(section, rows) {
   const bodyRows = sorted.map((r, i) => `
     <tr>
       <td class="rank">${i + 1}</td>
-      <td class="symbol">${r.symbol}</td>
+      <td class="symbol">${r.symbol}.P</td>
       <td>${formatPrice(r.price)}</td>
       <td>${formatPrice(r.ma50)}</td>
       <td>${formatPrice(r.ma150)}</td>
@@ -280,7 +280,7 @@ function renderSectionTable(section, rows) {
 
 function renderTable() {
   if (lastResults.length === 0) {
-    resultArea.innerHTML = `<div class="empty">目前沒有符合 MA50 &gt; MA150 &gt; MA200 多頭排列的 USDT 幣種。</div>`;
+    resultArea.innerHTML = `<div class="empty">目前沒有符合 MA50 &gt; MA150 &gt; MA200 多頭排列的 USDT 永續合約。</div>`;
     return;
   }
 
@@ -307,11 +307,11 @@ async function runScan() {
   progressBar.classList.add("active");
   progressFill.style.width = "0%";
   resultArea.innerHTML = "";
-  statusEl.textContent = "正在取得所有 USDT 交易對清單...";
+  statusEl.textContent = "正在取得所有 USDT 永續合約清單...";
 
   try {
     const symbols = await getUsdtSymbols();
-    statusEl.textContent = `共 ${symbols.length} 個 USDT 幣種，開始抓取日K並計算均線...`;
+    statusEl.textContent = `共 ${symbols.length} 個 USDT 永續合約，開始抓取日K並計算均線...`;
 
     lastResults = await runPool(symbols, analyzeSymbol, 8, (done, total) => {
       const pct = Math.round((done / total) * 100);
