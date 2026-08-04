@@ -105,6 +105,7 @@
   </div>
   <div class="controls">
     <button id="scanBtn">開始掃描</button>
+    <button id="exportBtn" disabled>匯出 TXT</button>
     <span class="status" id="status">尚未掃描</span>
   </div>
   <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
@@ -117,6 +118,7 @@
 <script>
 const BASE = "https://fapi.binance.com";
 const scanBtn = document.getElementById("scanBtn");
+const exportBtn = document.getElementById("exportBtn");
 const statusEl = document.getElementById("status");
 const progressBar = document.getElementById("progressBar");
 const progressFill = document.getElementById("progressFill");
@@ -302,8 +304,46 @@ function renderTable() {
   });
 }
 
+function buildExportText() {
+  const lines = [];
+  lines.push("USDT 永續合約 MA 多頭排列篩選器");
+  lines.push("匯出時間：" + new Date().toLocaleString("zh-TW", { hour12: false }));
+  lines.push("符合多頭排列（MA50 > MA150 > MA200）共 " + lastResults.length + " 檔");
+  lines.push("");
+
+  SECTIONS.forEach(section => {
+    const rows = sortRows(lastResults.filter(section.match), sectionState[section.id]);
+    lines.push(`== ${section.title}（${rows.length} 檔） ==`);
+    if (rows.length === 0) {
+      lines.push("（無）");
+    } else {
+      rows.forEach(r => lines.push(r.symbol + ".P"));
+    }
+    lines.push("");
+  });
+
+  return lines.join("\n");
+}
+
+function downloadTxt() {
+  const text = buildExportText();
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const ts = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const stamp = `${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}`;
+  a.href = url;
+  a.download = `usdt-ma-screener-${stamp}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 async function runScan() {
   scanBtn.disabled = true;
+  exportBtn.disabled = true;
   progressBar.classList.add("active");
   progressFill.style.width = "0%";
   resultArea.innerHTML = "";
@@ -321,6 +361,7 @@ async function runScan() {
 
     statusEl.textContent = `掃描完成：共 ${symbols.length} 檔，符合多頭排列 ${lastResults.length} 檔`;
     renderTable();
+    exportBtn.disabled = lastResults.length === 0;
   } catch (e) {
     resultArea.innerHTML = `<div class="error">掃描失敗：${e.message}</div>`;
     statusEl.textContent = "發生錯誤";
@@ -331,6 +372,7 @@ async function runScan() {
 }
 
 scanBtn.addEventListener("click", runScan);
+exportBtn.addEventListener("click", downloadTxt);
 </script>
 </body>
 </html>
