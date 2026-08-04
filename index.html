@@ -306,22 +306,10 @@ function renderTable() {
 
 function buildExportText() {
   const lines = [];
-  lines.push("USDT 永續合約 MA 多頭排列篩選器");
-  lines.push("匯出時間：" + new Date().toLocaleString("zh-TW", { hour12: false }));
-  lines.push("符合多頭排列（MA50 > MA150 > MA200）共 " + lastResults.length + " 檔");
-  lines.push("");
-
   SECTIONS.forEach(section => {
     const rows = sortRows(lastResults.filter(section.match), sectionState[section.id]);
-    lines.push(`== ${section.title}（${rows.length} 檔） ==`);
-    if (rows.length === 0) {
-      lines.push("（無）");
-    } else {
-      rows.forEach(r => lines.push(r.symbol + ".P"));
-    }
-    lines.push("");
+    rows.forEach(r => lines.push(r.symbol + ".P"));
   });
-
   return lines.join("\n");
 }
 
