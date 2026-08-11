@@ -305,12 +305,9 @@ function renderTable() {
 }
 
 function buildExportText() {
-  const lines = [];
-  SECTIONS.forEach(section => {
-    const rows = sortRows(lastResults.filter(section.match), sectionState[section.id]);
-    rows.forEach(r => lines.push(r.symbol + ".P"));
-  });
-  return lines.join("\n");
+  // 匯出不分三類，合併成單一清單依代號排序，方便整批貼進 TradingView 觀察清單
+  const rows = sortRows(lastResults, { sortKey: "symbol", sortDir: 1 });
+  return rows.map(r => r.symbol + ".P").join("\n");
 }
 
 function downloadTxt() {
